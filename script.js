@@ -1,0 +1,683 @@
+const botaoNao = document.getElementById("nao");
+const palco = document.getElementById("palco");
+
+const botaoSim =
+document.getElementById("sim");
+
+const modal =
+document.getElementById("modalEncontro");
+
+const conteudoModal =
+document.getElementById("conteudoModal");
+
+let etapa = 1;
+
+let dadosEncontro = {
+
+    data: "",
+    hora: "",
+    comida: ""
+
+};
+
+let podeFugir = false;
+let fugindo = false;
+let ultimaFuga = 0;
+
+window.addEventListener("load", () => {
+
+    setTimeout(() => {
+        podeFugir = true;
+    }, 1000);
+
+});
+
+// ================================
+// BOTÃO FUGITIVO
+// ================================
+
+function getMargemFuga() {
+    return window.innerWidth <= 600 ? 14 : 28;
+}
+
+function isDesktopComMouse() {
+    return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+}
+
+function getZonaSim() {
+
+    const palcoRect = palco.getBoundingClientRect();
+    const simRect = botaoSim.getBoundingClientRect();
+    const margem = 10;
+
+    return {
+        left: simRect.left - palcoRect.left - margem,
+        top: simRect.top - palcoRect.top - margem,
+        right: simRect.right - palcoRect.left + margem,
+        bottom: simRect.bottom - palcoRect.top + margem
+    };
+}
+
+function sobrepoeSim(x, y, btnW, btnH, zonaSim) {
+
+    const direita = x + btnW;
+    const baixo = y + btnH;
+
+    return !(
+        direita <= zonaSim.left ||
+        x >= zonaSim.right ||
+        baixo <= zonaSim.top ||
+        y >= zonaSim.bottom
+    );
+}
+
+function sortearPosicaoFuga(area, centroAtualX, centroAtualY, zonaSim) {
+
+    const distanciaMinima = 36;
+    let x = area.minX;
+    let y = area.minY;
+
+    for (let tentativas = 0; tentativas < 24; tentativas++) {
+        x = area.minX + Math.random() * (area.maxX - area.minX);
+        y = area.minY + Math.random() * (area.maxY - area.minY);
+
+        if (sobrepoeSim(x, y, area.btnW, area.btnH, zonaSim)) {
+            continue;
+        }
+
+        const centroNovoX = x + area.btnW / 2;
+        const centroNovoY = y + area.btnH / 2;
+
+        const distancia = Math.hypot(
+            centroNovoX - centroAtualX,
+            centroNovoY - centroAtualY
+        );
+
+        if (distancia >= distanciaMinima) {
+            return { x, y };
+        }
+    }
+
+    for (let tentativas = 0; tentativas < 24; tentativas++) {
+        x = area.minX + Math.random() * (area.maxX - area.minX);
+        y = area.minY + Math.random() * (area.maxY - area.minY);
+
+        if (!sobrepoeSim(x, y, area.btnW, area.btnH, zonaSim)) {
+            return { x, y };
+        }
+    }
+
+    return null;
+}
+
+function getPosicaoReserva(area, zonaSim, evitarX, evitarY, palcoRect) {
+
+    const pontos = [
+        { x: area.minX, y: area.minY },
+        { x: area.maxX, y: area.minY },
+        { x: area.minX, y: area.maxY },
+        { x: area.maxX, y: area.maxY },
+        { x: area.minX, y: (area.minY + area.maxY) / 2 },
+        { x: area.maxX, y: (area.minY + area.maxY) / 2 },
+        { x: (area.minX + area.maxX) / 2, y: area.minY },
+        { x: (area.minX + area.maxX) / 2, y: area.maxY }
+    ];
+
+    let melhor = null;
+    let maiorDistancia = -1;
+
+    for (const ponto of pontos) {
+        if (sobrepoeSim(ponto.x, ponto.y, area.btnW, area.btnH, zonaSim)) {
+            continue;
+        }
+
+        const centroX = palcoRect.left + ponto.x + area.btnW / 2;
+        const centroY = palcoRect.top + ponto.y + area.btnH / 2;
+        const distancia = Math.hypot(centroX - evitarX, centroY - evitarY);
+
+        if (distancia > maiorDistancia) {
+            maiorDistancia = distancia;
+            melhor = ponto;
+        }
+    }
+
+    return melhor;
+}
+
+function escolherPosicaoFuga(area, zonaSim, palcoRect, ponteiroX, ponteiroY) {
+
+    const palcoLeft = palcoRect.left;
+    const palcoTop = palcoRect.top;
+    const atual = botaoNao.getBoundingClientRect();
+
+    const centroAtualX = atual.left - palcoLeft + atual.width / 2;
+    const centroAtualY = atual.top - palcoTop + atual.height / 2;
+
+    const alvoX = ponteiroX ?? palcoLeft + centroAtualX;
+    const alvoY = ponteiroY ?? palcoTop + centroAtualY;
+
+    if (isDesktopComMouse()) {
+        const reserva = getPosicaoReserva(area, zonaSim, alvoX, alvoY, palcoRect);
+        if (reserva) return reserva;
+    }
+
+    const sorteada = sortearPosicaoFuga(
+        area,
+        centroAtualX,
+        centroAtualY,
+        zonaSim
+    );
+
+    if (sorteada) return sorteada;
+
+    return getPosicaoReserva(area, zonaSim, alvoX, alvoY, palcoRect);
+}
+
+function aplicarPosicao(area, posicao) {
+
+    const x = Math.max(area.minX, Math.min(posicao.x, area.maxX));
+    const y = Math.max(area.minY, Math.min(posicao.y, area.maxY));
+
+    botaoNao.style.left = Math.round(x) + "px";
+    botaoNao.style.top = Math.round(y) + "px";
+    botaoNao.style.visibility = "visible";
+    botaoNao.style.opacity = "1";
+}
+
+function getAreaFuga() {
+
+    const caixa = document.getElementById("caixa");
+    const palcoRect = palco.getBoundingClientRect();
+    const caixaRect = caixa.getBoundingClientRect();
+
+    const btnW = botaoNao.offsetWidth || 120;
+    const btnH = botaoNao.offsetHeight || 45;
+    const extra = getMargemFuga();
+
+    let minX = caixaRect.left - palcoRect.left - extra;
+    let maxX = caixaRect.right - palcoRect.left - btnW + extra;
+    let minY = caixaRect.top - palcoRect.top - extra;
+    let maxY = caixaRect.bottom - palcoRect.top - btnH + extra;
+
+    const limite = 3;
+    const palcoW = palco.offsetWidth;
+    const palcoH = palco.offsetHeight;
+
+    minX = Math.max(limite, minX);
+    minY = Math.max(limite, minY);
+    maxX = Math.min(palcoW - btnW - limite, maxX);
+    maxY = Math.min(palcoH - btnH - limite, maxY);
+
+    if (maxX < minX) {
+        const centro = caixaRect.left - palcoRect.left + caixaRect.width / 2 - btnW / 2;
+        minX = maxX = Math.max(limite, Math.min(centro, palcoW - btnW - limite));
+    }
+
+    if (maxY < minY) {
+        const centro = caixaRect.top - palcoRect.top + caixaRect.height / 2 - btnH / 2;
+        minY = maxY = Math.max(limite, Math.min(centro, palcoH - btnH - limite));
+    }
+
+    return { minX, maxX, minY, maxY, btnW, btnH };
+}
+
+function iniciarFuga() {
+
+    const pos = botaoNao.getBoundingClientRect();
+    const palcoRect = palco.getBoundingClientRect();
+
+    botaoNao.classList.add("fugindo");
+    palco.appendChild(botaoNao);
+
+    botaoNao.style.width = pos.width + "px";
+    botaoNao.style.height = pos.height + "px";
+    botaoNao.style.left = (pos.left - palcoRect.left) + "px";
+    botaoNao.style.top = (pos.top - palcoRect.top) + "px";
+    botaoNao.style.visibility = "visible";
+    botaoNao.style.opacity = "1";
+
+    void botaoNao.offsetHeight;
+    fugindo = true;
+}
+
+function moverBotao(ponteiroX, ponteiroY) {
+
+    const area = getAreaFuga();
+    const palcoRect = palco.getBoundingClientRect();
+    const zonaSim = getZonaSim();
+
+    const posicao = escolherPosicaoFuga(
+        area,
+        zonaSim,
+        palcoRect,
+        ponteiroX,
+        ponteiroY
+    );
+
+    if (!posicao) return;
+
+    aplicarPosicao(area, posicao);
+}
+
+function fugir(ponteiroX, ponteiroY) {
+
+    if (!podeFugir) return;
+
+    const agora = Date.now();
+    const intervalo = isDesktopComMouse() ? 160 : 100;
+
+    if (agora - ultimaFuga < intervalo) return;
+    ultimaFuga = agora;
+
+    if (!fugindo) {
+        iniciarFuga();
+        requestAnimationFrame(() => {
+            moverBotao(ponteiroX, ponteiroY);
+        });
+        return;
+    }
+
+    moverBotao(ponteiroX, ponteiroY);
+}
+
+// Desktop e mobile (toque)
+document.addEventListener("mousemove", (e) => {
+
+    if (!podeFugir || !isDesktopComMouse()) return;
+
+    const rect = botaoNao.getBoundingClientRect();
+
+    if (!rect.width || !rect.height) return;
+
+    const centroX = rect.left + rect.width / 2;
+    const centroY = rect.top + rect.height / 2;
+
+    const distancia = Math.hypot(
+        e.clientX - centroX,
+        e.clientY - centroY
+    );
+
+    if (distancia < 90) {
+        fugir(e.clientX, e.clientY);
+    }
+
+});
+
+document.addEventListener("touchmove", (e) => {
+
+    if (!podeFugir) return;
+
+    const toque = e.touches[0];
+    if (!toque) return;
+
+    const rect = botaoNao.getBoundingClientRect();
+
+    if (!rect.width || !rect.height) return;
+
+    const centroX = rect.left + rect.width / 2;
+    const centroY = rect.top + rect.height / 2;
+
+    const distancia = Math.hypot(
+        toque.clientX - centroX,
+        toque.clientY - centroY
+    );
+
+    if (distancia < 90) {
+        fugir(toque.clientX, toque.clientY);
+    }
+
+}, { passive: true });
+
+botaoNao.addEventListener(
+    "pointerdown",
+    (e) => {
+        e.preventDefault();
+        fugir(e.clientX, e.clientY);
+    }
+);
+
+botaoNao.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    fugir(e.clientX, e.clientY);
+});
+// ================================
+// CORAÇÕES
+// ================================
+
+const containerCoracoes =
+document.getElementById("coracoes");
+
+function criarCoracao() {
+
+    const coracao =
+        document.createElement("div");
+
+    coracao.classList.add("coracao");
+
+    coracao.innerHTML = "❤";
+
+    coracao.style.left =
+        Math.random() * 100 + "vw";
+
+    coracao.style.top =
+        (100 + Math.random() * 15) + "vh";
+
+    coracao.style.fontSize =
+        (15 + Math.random() * 20) + "px";
+
+    coracao.style.animationDuration =
+        (4 + Math.random() * 4) + "s";
+
+    containerCoracoes.appendChild(coracao);
+
+    setTimeout(() => {
+        coracao.remove();
+    }, 8000);
+
+}
+
+// Cria alguns imediatamente
+for(let i = 0; i < 20; i++){
+    criarCoracao();
+}
+
+setInterval(
+    criarCoracao,
+    150
+);
+
+botaoSim.addEventListener(
+    "click",
+    abrirModal
+);
+
+function abrirModal(){
+
+    modal.classList.remove("oculto");
+
+    etapa = 1;
+
+    renderizarEtapa();
+}
+
+function renderizarEtapa(){
+
+    if(etapa === 1){
+
+        const hoje = new Date();
+
+        const dataMin =
+            hoje.toISOString().split("T")[0];
+
+        const dataMax = new Date(
+            hoje.getFullYear(),
+            hoje.getMonth() + 3,
+            hoje.getDate()
+        ).toISOString().split("T")[0];
+
+        conteudoModal.innerHTML = `
+
+            <h2>📅 Qual dia você prefere?</h2>
+
+            <input
+                type="date"
+                id="campoData"
+                value="${dadosEncontro.data}"
+                min="${dataMin}"
+                max="${dataMax}"
+            >
+
+            <div class="botoes-modal">
+
+                <button
+                    class="btn-modal btn-proximo"
+                    onclick="proximaEtapa()"
+                >
+                    Próximo
+                </button>
+
+            </div>
+
+        `;
+    }
+
+    if(etapa === 2){
+
+        conteudoModal.innerHTML = `
+
+            <h2>🚗 A que horas eu te busco?</h2>
+
+            <input
+            type="time"
+            id="campoHora"
+            value="${dadosEncontro.hora}"
+            step="1800"
+            >
+
+            <div class="botoes-modal">
+
+                <button
+                    class="btn-modal btn-voltar"
+                    onclick="voltarEtapa()"
+                >
+                    Voltar
+                </button>
+
+                <button
+                    class="btn-modal btn-proximo"
+                    onclick="proximaEtapa()"
+                >
+                    Próximo
+                </button>
+
+            </div>
+
+        `;
+    }
+
+    if(etapa === 3){
+
+        conteudoModal.innerHTML = `
+
+            <h2>O que você gostaria de fazer?</h2>
+
+            <div class="opcoes-comida">
+
+                <button class="opcao-comida">🌿 Lagoa</button>
+                <button class="opcao-comida">🎬 Cinema</button>
+                <button class="opcao-comida">🥡 Vila Rica</button>
+                <button class="opcao-comida">🍕 Flemming</button>
+                <button class="opcao-comida">🍻 Barzinho de sua escolha</button>
+                <button class="opcao-comida">🚗 Roletar de Carro por aí</button>
+                <button class="opcao-comida">🌮 Mercado Novo</button>
+                <button class="opcao-comida">🎯 Bar da Igreja “sinuca”</button>
+                <button class="opcao-comida">🍜 Night Market</button>
+                <button class="opcao-comida">🦐 Sugerir</button>
+                <button class="opcao-comida">✨ Surpresa</button>
+
+            </div>
+
+            <div class="botoes-modal">
+
+                <button
+                    class="btn-modal btn-voltar"
+                    onclick="voltarEtapa()"
+                >
+                    Voltar
+                </button>
+
+            </div>
+
+        `;
+
+        document
+        .querySelectorAll(".opcao-comida")
+        .forEach(botao => {
+
+            botao.addEventListener(
+                "click",
+                () => {
+
+                    dadosEncontro.comida =
+                    botao.textContent;
+
+                    etapa = 4;
+
+                    renderizarEtapa();
+
+                }
+            );
+
+        });
+
+    }
+
+    if(etapa === 4){
+
+        conteudoModal.innerHTML = `
+
+            <h2>❤️ Confirmar encontro</h2>
+
+            <div class="resumo">
+
+                <p>
+                    📅 ${new Date(dadosEncontro.data)
+                        .toLocaleDateString('pt-BR')}
+                </p>
+
+                <p>
+                    🕒 ${dadosEncontro.hora}
+                </p>
+
+                <p>
+                    ✨ ${dadosEncontro.comida}
+                </p>
+
+            </div>
+
+            <div class="botoes-modal">
+
+                <button
+                    class="btn-modal btn-voltar"
+                    onclick="voltarEtapa()"
+                >
+                    Voltar
+                </button>
+
+                <button
+                    class="btn-modal btn-confirmar"
+                    onclick="confirmarEncontro()"
+                >
+                    Confirmar
+                </button>
+
+            </div>
+
+        `;
+    }
+
+}
+
+function proximaEtapa(){
+
+    if(etapa === 1){
+
+        dadosEncontro.data =
+            document.getElementById("campoData").value;
+
+        if(!dadosEncontro.data){
+            return;
+        }
+
+        const escolhida = new Date(
+            dadosEncontro.data + "T12:00:00"
+        );
+
+        // Hoje (zera horas)
+        const hoje = new Date();
+        hoje.setHours(0, 0, 0, 0);
+
+        // Limite máximo
+        const limite = new Date();
+        limite.setMonth(
+            limite.getMonth() + 3
+        );
+        limite.setHours(23, 59, 59, 999);
+
+        // Data passada
+        if(escolhida < hoje){
+            alert("Escolha uma data a partir de hoje.");
+            return;
+        }
+
+        // Data muito futura
+        if(escolhida > limite){
+            alert("Escolha uma data dentro dos próximos 3 meses.");
+            return;
+        }
+
+    }
+
+    if(etapa === 2){
+
+        dadosEncontro.hora =
+        document.getElementById("campoHora").value;
+
+        if(!dadosEncontro.hora){
+            return;
+        }
+
+    }
+
+    etapa++;
+
+    renderizarEtapa();
+}
+
+function voltarEtapa(){
+
+    etapa--;
+
+    renderizarEtapa();
+}
+
+function confirmarEncontro(){
+
+    conteudoModal.innerHTML = `
+
+        <div class="sucesso">
+
+            <h2>❤️ Nosso encontro está quase marcado!</h2>
+
+            <p>Clique em "Enviar detalhes" para marcar</p>
+
+            <button class="btn-modal btn-confirmar" onclick="enviarWhatsApp()">
+                Enviar detalhes
+            </button>
+
+        </div>
+
+    `;
+}
+
+function enviarWhatsApp(){
+
+    const numero = "553191239814";
+
+    const mensagem = `
+    ♡ Novo encontro marcado!
+
+    ♡ Data: ${dadosEncontro.data}
+    ♡ Hora: ${dadosEncontro.hora}
+    ♡ O que vamos fazer: ${dadosEncontro.comida}
+    `;
+
+    const url =
+        "https://wa.me/" +
+        numero +
+        "?text=" +
+        encodeURIComponent(mensagem);
+
+    window.open(url, "_blank");
+}
