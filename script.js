@@ -484,16 +484,16 @@ function renderizarEtapa(){
 
             <div class="opcoes-comida">
 
-                <button class="opcao-comida">🌿 Lagoa</button>
+                <button class="opcao-comida">🚲 Lagoa</button>
                 <button class="opcao-comida">🎬 Cinema</button>
-                <button class="opcao-comida">🥡 Vila Rica</button>
-                <button class="opcao-comida">🍕 Flemming</button>
+                <button class="opcao-comida">🍴🕯️ Vila Rica</button>
+                <button class="opcao-comida">🍹 Flemming</button>
                 <button class="opcao-comida">🍻 Barzinho de sua escolha</button>
                 <button class="opcao-comida">🚗 Roletar de Carro por aí</button>
                 <button class="opcao-comida">🌮 Mercado Novo</button>
                 <button class="opcao-comida">🎯 Bar da Igreja “sinuca”</button>
-                <button class="opcao-comida">🍜 Night Market</button>
-                <button class="opcao-comida">🦐 Sugerir</button>
+                <button class="opcao-comida">🍸 Night Market</button>
+                <button class="opcao-comida">⁉️ Sugerir</button>
                 <button class="opcao-comida">✨ Surpresa</button>
 
             </div>
